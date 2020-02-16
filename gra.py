@@ -3,12 +3,9 @@ import pygame, sys
 class Dot():
     pos = ()
     visited = False
-    dir_open = []
     def __init__(self, pos_, visited_):
         self.pos = pos_
         self.visited = visited_
-        for i in range(8):
-            self.dir_open.append(0)
 
 class Edge():
     A = () #point 1
@@ -53,9 +50,10 @@ dirs = [
     (-1, 1),    #6 = SW
     (-1, 0)     #7 = W
 ]
+visited_pix = []
    #END HELPER LISTS
-   #GENERATING BOARD - DOTS AND EDGES
 
+#GENERATING BOARD - DOTS AND EDGES
 board = []
 edges = []
 edgeI = dict()
@@ -88,6 +86,7 @@ for i in range(len(borderPoints)-1):
 for e in H2:
     edges[edgeI[e]].state = 0
 
+#HELPER FUNCTIONS
 def distance2(A, B):
     x = A[0] - B[0]
     y = A[1] - B[1]
@@ -133,12 +132,71 @@ w = min(width//8, height//12)
 CENTER = width//2, height//2
 CENTER_DOT = (3, 5)
 
-activeDot = aX, aY = CENTER_DOT
-activePoint = aA, aB = CENTER
+activeDot = aX, aY = CENTER_DOT #Board Coords of active point
+activePoint = aA, aB = CENTER #Pixel Coords of active point
 
 dots = []
 vis = dict()
     
+
+size = width, height = 600, 600
+w = min(width//8, height//12)
+CENTER = width//2, height//2
+CENTER_DOT = (3, 5)
+
+activeDot = aX, aY = CENTER_DOT #Board Coords of active point[redundant?]
+activePoint = aA, aB = CENTER #Pixel Coords of active point[redundant?]
+    
+MOUSE_RAD = w*2//5 #radius for mouse
+mouseDot = mx, my = 0, 0 
+
+for row in board:    
+    for dot in row:
+        x, y = dot_to_pixel(dot.pos, CENTER, CENTER_DOT, w)
+        dots.append((x, y))
+        vis[(x, y)] = dot.visited
+        if dot.visited:
+            visited_pix.append((x, y))
+
+#saving basic stuff
+first_vis = vis.copy()
+first_board = board.copy()
+first_edges = edges.copy()
+
+def reset():
+    global borderPoints
+    global visited_pix
+
+    global vis
+    global edges
+    global board
+    global first_vis
+    global first_board
+    global first_edges
+    vis = first_vis
+    edges = first_edges
+    board = first_board
+    global activeDot
+    global activePoint
+    global CENTER
+    global CENTER_DOT
+    activeDot = CENTER_DOT #Board Coords of active point[redundant?]
+    activePoint = CENTER #Pixel Coords of active point[redundant?]
+    for r in board:
+        for dot in r:
+            if dot.pos in borderPoints:
+                dot.visited = True
+            else:
+                dot.visited = False
+    for e in edges:
+        e.state = 1
+    for i in range(len(borderPoints)-1):
+        edges[edgeI[(borderPoints[i+1], borderPoints[i])]].state = 2
+    for e in H2:
+        edges[edgeI[e]].state = 0
+    for k in vis.keys():
+        if k not in visited_pix:
+            vis[k] = False
 
 if __name__ == "__main__":
     """    ro = []
@@ -148,21 +206,11 @@ if __name__ == "__main__":
             if d is not None:                
                 ro.append(d.visited)
         print(ro)"""
-
+    #initializing and creating basic constants
     pygame.init()
-    size = width, height = 600, 600
-    w = min(width//8, height//12)
-    CENTER = width//2, height//2
-    CENTER_DOT = (3, 5)
-
-    activeDot = aX, aY = CENTER_DOT
-    activePoint = aA, aB = CENTER
-    
-    MOUSE_RAD = 20
-    mouseDot = mx, my = 0, 0
     
     screen = pygame.display.set_mode(size)
-
+    #COLORS
     black = (0, 0, 0)
     white = (255, 255, 255)
     blue = (0, 100, 255)
@@ -170,52 +218,57 @@ if __name__ == "__main__":
     red =   (255, 0, 0)
     grey =  (220, 220, 220)
     yellow = (255, 255, 150, 50)
-    
+    #PLAYERS info
     PLAYER = 0
     playerColors = [red, blue]
 
     SCORE = [0, 0]
 
-    dots = []
-    vis = dict()
+    #global dots #pixel coords of all dots {only for drawing}
+    #global vis #pixel coords -> visited {for drawing apprioprate colors}
 
-    for row in board:    
-        for dot in row:
-            x, y = dot_to_pixel(dot.pos, CENTER, CENTER_DOT, w)
-            dots.append((x, y))
-            vis[(x, y)] = dot.visited
 
     while True:
         screen.fill(white)
-        Mpos = Mx, My = pygame.mouse.get_pos()
+        Mpos = Mx, My = pygame.mouse.get_pos() #Mouse position
         vis[activePoint] = True
+        #draw colors @ the goal
+        temp = dot_to_pixel(board[0][2].pos, CENTER, CENTER_DOT, w)
+        pygame.draw.rect(screen, playerColors[1], (temp[0], temp[1], w*2, w))
+        temp = dot_to_pixel(board[10][2].pos, CENTER, CENTER_DOT, w)
+        pygame.draw.rect(screen, playerColors[0], (temp[0], temp[1], w*2, 1-w)) #1-w bc pixel correctness
+
+        #drawing outer colors for reference
         pygame.draw.rect(screen, playerColors[PLAYER], (0, 0, 80, height))
         pygame.draw.rect(screen, playerColors[PLAYER], (width, 0, -80, height))
-        pygame.draw.rect(screen, black, (80, 0, width-160, w*3/4))
+        #pygame.draw.rect(screen, black, (80, 0, width-160, w*3/4))
         pygame.draw.rect(screen, red, (width//2, 0, -50, w*3/4))
         pygame.draw.rect(screen, blue, (width//2, 0, 50, w*3/4))
-
-        if goal(activeDot) is not None:
-            SCORE[goal(activeDot)] += 1
-            
-            #reset
+        #writing the score
         font = pygame.font.SysFont("comicsansms", 36)
         txt = str(SCORE[0])+' : '+str(SCORE[1])
         text = font.render(txt, True, white)
         screen.blit(text,(width//2 - text.get_width() // 2, w*3//8 - text.get_height() // 2))
-    
-
+        #checking if GOAL
+        g = goal(activeDot) 
+        if g is not None:
+            SCORE[g] += 1
+            reset()
+            PLAYER = not PLAYER
+            #reset
+        
+        #drawing edges
         for e in edges:
             if e.state == 1:
                 pygame.draw.line(screen, grey, dot_to_pixel(e.A, CENTER, CENTER_DOT, w), dot_to_pixel(e.B, CENTER, CENTER_DOT, w), 1)
             if e.state == 2:
                 pygame.draw.line(screen, black, dot_to_pixel(e.A, CENTER, CENTER_DOT, w), dot_to_pixel(e.B, CENTER, CENTER_DOT, w), 2)
 
-        #for d in dots:
-            #for i in range(8):
-                #pygame.draw.line(screen, grey, d, (d[0]+dirs[i][0]*w, d[1]+dirs[i][1]*w), 1)
+        #drawing feedback for mouse        
         pygame.draw.line(screen, black, activePoint, Mpos, 1)
         pygame.draw.circle(screen, green, activePoint, 4)
+        
+        #drawing dots(visited and empty)
         for d in dots:
             if distance2(d, Mpos)<=MOUSE_RAD*MOUSE_RAD:
                 pygame.draw.circle(screen, blue, d, 4)
@@ -225,9 +278,16 @@ if __name__ == "__main__":
             else:
                 pygame.draw.circle(screen, black, d, 2)
         
-        pygame.draw.circle(screen, yellow, Mpos, 20, 2)
+        #mouse radius feedback
+        #pygame.draw.circle(screen, yellow, Mpos, 20, 2)
+        
         pygame.display.update()
+        
         for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    reset()
+                    PLAYER = not PLAYER
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
